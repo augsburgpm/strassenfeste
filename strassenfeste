@@ -132,6 +132,10 @@ __DATA__
 <html>
   <head><title><%= title %></title>
   <%= stylesheet '/style.css'%>
+  <%= stylesheet '/css/ui-lightness/jquery-ui-1.10.3.custom.min.css'%>
+  <%= javascript '/js/jquery-1.9.1.js'%>
+  <%= javascript '/js/jquery-ui-1.10.3.custom.min.js'%>
+  <%= javascript '/strassenfeste.js'%>
   </head>
   <body><%= content %></body>
 </html>
