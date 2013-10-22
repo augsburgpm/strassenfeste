@@ -49,17 +49,20 @@ get '/' => sub {
   my $self = shift;
 
   my @filters;
-  if (my $from = $self->param('from_date')) {
+  if (my $from = $self->param('filter_from_date')) {
       my $date = Date::Manip::Date->new();
       if (!($date->parse_format('%d\\.%m\\.%Y', $from) && $date->parse_format('%Y\\-%m\\-%d', $from))) {
           push @filters, sub {$_[0]->{__bis}->cmp($date) >= 0};
       }
   }
-  if (my $to = $self->param('to_date')) {
+  if (my $to = $self->param('filter_to_date')) {
       my $date = Date::Manip::Date->new();
       if (!($date->parse_format('%d\\.%m\\.%Y', $to) && $date->parse_format('%Y\\-%m\\-%d', $to))) {
           push @filters, sub {$_[0]->{__von}->cmp($date) <= 0};
       }
+  }
+  if (my $desc = $self->param('filter_description')) {
+      push @filters, sub {index($_[0]->{bezeichnung}, $desc) >= 0};
   }
   $self->stash(feste_data => get_filtered_data(\@filters));
   $self->stash(attrs => [qw[von bis bezeichnung]]);
@@ -85,8 +88,12 @@ __DATA__
 % title 'Welcome to Strassenfeste';
 
 %= form_for '/' => begin
-    %= date_field 'from_date'
-    %= date_field 'to_date'
+    %= label_for filter_from_date => 'From Date'
+    %= date_field 'filter_from_date'
+    %= label_for filter_to_date => 'To Date'
+    %= date_field 'filter_to_date'
+    %= label_for filter_description => 'Description'
+    %= text_field 'filter_description'
     %= submit_button 'OK'
 % end
 
