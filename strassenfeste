@@ -15,14 +15,14 @@ sub get_data {
     my @results = @{j($ua->get('/all.json')->res->body)->{index}};
 
     # modify
+    my $date = Date::Manip::Date->new();
     for my $fest (@results) {
 
         for my $datename (qw(von bis)) {
-            my $date = Date::Manip::Date->new();
 
             $date->parse_format('%d\\.%m\\.%Y', $fest->{$datename}) && $date->parse_format('%Y\\-%m\\-%d', $fest->{$datename});
             $fest->{$datename} = $date->printf('%d.%m.%Y');
-            $fest->{"__$datename"} = $date;
+            $fest->{"__cmp__$datename"} = $date->printf('%s');
         }
     }
     return \@results;
@@ -52,13 +52,15 @@ get '/' => sub {
   if (my $from = $self->param('filter_from_date')) {
       my $date = Date::Manip::Date->new();
       if (!($date->parse_format('%d\\.%m\\.%Y', $from) && $date->parse_format('%Y\\-%m\\-%d', $from))) {
-          push @filters, sub {$_[0]->{__bis}->cmp($date) >= 0};
+          my $cmp_with = $date->printf('%s');
+          push @filters, sub {$_[0]->{__cmp__bis} >= $cmp_with};
       }
   }
   if (my $to = $self->param('filter_to_date')) {
       my $date = Date::Manip::Date->new();
       if (!($date->parse_format('%d\\.%m\\.%Y', $to) && $date->parse_format('%Y\\-%m\\-%d', $to))) {
-          push @filters, sub {$_[0]->{__von}->cmp($date) <= 0};
+          my $cmp_with = $date->printf('%s');
+          push @filters, sub {$_[0]->{__cmp__von} <= $cmp_with};
       }
   }
   if (my $desc = $self->param('filter_description')) {
@@ -117,6 +119,7 @@ __DATA__
 @@detail.html.ep
 % layout 'default';
 % title 'Detail';
+<p><%= link_to 'Zurück' => '/'%></p>
 <table>
     % for my $a (@$detailattrs) {
         <tr>
