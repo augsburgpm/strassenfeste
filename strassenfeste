@@ -149,3 +149,8 @@ td
   {border: 1px solid black}
 table
   {border-collapse: collapse}
+
+@@ strassenfeste.js
+$(function(){
+    $('input[type=date]').datepicker({ dateFormat: "dd.mm.yy" });
+});
