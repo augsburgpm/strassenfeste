@@ -11,8 +11,7 @@ use Memoize;
 
 sub get_data {
     my $ua = Mojo::UserAgent->new;
-    # retrieve data from URL
-    my @results = @{j($ua->get('/all.json')->res->body)->{index}};
+    my @results = @{j($ua->get($source_url)->res->body)->{index}};
 
     # modify
     my $date = Date::Manip::Date->new();
