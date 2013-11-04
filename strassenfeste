@@ -1,44 +1,56 @@
 #!/usr/bin/env perl
 
-#my $source_url = 'http://www.berlin.de/sen/wirtschaft/service/maerkte/strassenfeste/index.php/index/all.json?q=';
-my $source_url = '/all.json';
-
 use Mojolicious::Lite;
 use Mojo::JSON 'j';
-use Date::Manip::Date;
-use List::MoreUtils qw(all);
 use Memoize;
 
+my $ger_date_re = qr/^ (?<tag>\d\d?)  [.] (?<monat>\d\d?) [.] (?<jahr>\d{4}) $/x;
+my $int_date_re = qr/^ (?<jahr>\d{4}) [-] (?<monat>\d\d?) [-] (?<tag>\d\d?) $/x;
+
+my $source_url = (app->mode eq 'development'
+                  ? '/all.json'
+                  :'http://www.berlin.de/sen/wirtschaft/service/maerkte/strassenfeste/index.php/index/all.json?q='
+                 );
+app->secret('mojostrassenfeste');
+
+sub parse_date {
+    my ($date) = @_;
+    if ($date =~ $ger_date_re || $date =~ $int_date_re) {
+        return ($+{tag}, $+{monat}, $+{jahr});
+    }
+    else {
+        return ();
+    }
+}
+
 sub get_data {
-    my $ua = Mojo::UserAgent->new;
-    my @results = @{j($ua->get($source_url)->res->body)->{index}};
+    my @results = @{j(app->ua->get($source_url)->res->body)->{index}};
 
-    # modify
-    my $date = Date::Manip::Date->new();
     for my $fest (@results) {
-
         for my $datename (qw(von bis)) {
-
-            $date->parse_format('%d\\.%m\\.%Y', $fest->{$datename}) && $date->parse_format('%Y\\-%m\\-%d', $fest->{$datename});
-            $fest->{$datename} = $date->printf('%d.%m.%Y');
-            $fest->{"__cmp__$datename"} = $date->printf('%s');
+            if (my ($tag, $monat, $jahr) = parse_date($fest->{$datename})) {
+                $fest->{$datename} = sprintf('%02d.%02d.%04d', $tag, $monat, $jahr);
+                $fest->{"__cmp__$datename"} = sprintf('%04d.%02d.%02d', $jahr, $monat, $tag);
+            }
+            else {
+                die qq(invalid date in input for '$datename':'$fest->{$datename}');
+            }
         }
     }
     return \@results;
-
 }
 memoize 'get_data';
 
 sub get_filtered_data {
     my ($filters) = @_;
     my $bare_data = get_data();
-    # filter
-    return [grep(
-                 {my $fest = $_;
-                  all {$_->($fest)} @$filters;
-                 }
-                 @$bare_data
-                )];
+    return [grep {my $fest = $_;
+                  my $ok = 1;
+                  $ok *= $_->($fest) for @$filters;
+                  $ok;
+              }
+            @$bare_data
+           ];
 }
 
 # Documentation browser under "/perldoc"
@@ -48,22 +60,17 @@ get '/' => sub {
   my $self = shift;
 
   my @filters;
-  if (my $from = $self->param('filter_from_date')) {
-      my $date = Date::Manip::Date->new();
-      if (!($date->parse_format('%d\\.%m\\.%Y', $from) && $date->parse_format('%Y\\-%m\\-%d', $from))) {
-          my $cmp_with = $date->printf('%s');
-          push @filters, sub {$_[0]->{__cmp__bis} >= $cmp_with};
-      }
+  if (my ($tag, $monat, $jahr) = parse_date($self->param('filter_from_date'))) {
+      my $cmp_with = sprintf('%04d.%02d.%02d', $jahr, $monat, $tag);
+      push @filters, sub {$_[0]->{__cmp__bis} ge $cmp_with};
   }
-  if (my $to = $self->param('filter_to_date')) {
-      my $date = Date::Manip::Date->new();
-      if (!($date->parse_format('%d\\.%m\\.%Y', $to) && $date->parse_format('%Y\\-%m\\-%d', $to))) {
-          my $cmp_with = $date->printf('%s');
-          push @filters, sub {$_[0]->{__cmp__von} <= $cmp_with};
-      }
+  if (my ($tag, $monat, $jahr) = parse_date($self->param('filter_to_date'))) {
+      my $cmp_with = sprintf('%04d.%02d.%02d', $jahr, $monat, $tag);
+      push @filters, sub {$_[0]->{__cmp__von} le $cmp_with};
   }
+
   if (my $desc = $self->param('filter_description')) {
-      push @filters, sub {index($_[0]->{bezeichnung}, $desc) >= 0};
+      push @filters, sub {index(lc($_[0]->{bezeichnung}), lc($desc)) >= 0};
   }
   $self->stash(feste_data => get_filtered_data(\@filters));
   $self->stash(attrs => [qw[von bis bezeichnung]]);
@@ -89,11 +96,12 @@ __DATA__
 % title 'Welcome to Strassenfeste';
 
 %= form_for '/' => begin
-    %= label_for filter_from_date => 'From Date'
+    %= label_for filter_from_date => 'Welches Straßenfest kann ich zwischen dem'
     %= date_field 'filter_from_date'
-    %= label_for filter_to_date => 'To Date'
+    %= label_for filter_to_date => 'und dem'
     %= date_field 'filter_to_date'
-    %= label_for filter_description => 'Description'
+    besuchen?
+    %= label_for filter_description => 'Suche in der Beschreibung nach:'
     %= text_field 'filter_description'
     %= submit_button 'OK'
 % end
