@@ -11,10 +11,13 @@ my $source_url = (app->mode eq 'development'
                   ? '/all.json'
                   :'http://www.berlin.de/sen/wirtschaft/service/maerkte/strassenfeste/index.php/index/all.json?q='
                  );
+my $cache_source_url_times = 5;
+
 app->secret('mojostrassenfeste');
 
 sub parse_date {
     my ($date) = @_;
+    return if !$date;
     if ($date =~ $ger_date_re || $date =~ $int_date_re) {
         return ($+{tag}, $+{monat}, $+{jahr});
     }
@@ -43,6 +46,11 @@ memoize 'get_data';
 
 sub get_filtered_data {
     my ($filters) = @_;
+    state $get_data_counter = 0;
+    if ($get_data_counter++ >= $cache_source_url_times) {
+        Memoize::flush_cache('get_data');
+        $get_data_counter = 0;
+    }
     my $bare_data = get_data();
     return [grep {my $fest = $_;
                   my $ok = 1;
