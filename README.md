@@ -11,5 +11,6 @@ Installation
       * cpan install Mojolicious
       * git clone .../strassenfeste
       * cd strassenfeste
-      * morbo strassenfeste
+      * morbo strassenfeste (verwendet die lokale Kopie der Strassenfeste)
+      * morbo strassenfeste -m production (verwendet die live-Version der Strassenfeste; mit Caching)
       * http://localhost:3000/
